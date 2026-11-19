@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlexiLog — 30h Personal Work Hours & Flexitime Tracker</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Tabular numerals ensure ticking timers and hour totals never jitter horizontally */
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Subtle pulse animation for the live active session indicator */
+    @keyframes softPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.92); }
+    }
+    .animate-soft-pulse {
+      animation: softPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Custom smooth scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white border-b border-slate-200/80 sticky top-0 z-30 backdrop-blur-md bg-white/95">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shadow-indigo-200">
+          <!-- Clock / Flexi Icon -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"></circle>
+            <polyline points="12 7 12 12 15.5 14"></polyline>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-none">FlexiLog</h1>
+            <span id="headerTargetBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 tabular-nums">
+              30h / wk
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5 hidden sm:block">Fragmented hours &amp; running balance tracker</p>
+        </div>
+      </div>
+
+      <!-- Header Quick Actions -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="btnExportCsv" type="button" title="Export CSV for Excel / Google Sheets"
+          class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 bg-white transition cursor-pointer">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span class="hidden sm:inline">Export CSV</span>
+        </button>
+
+        <button id="btnOpenSettings" type="button" title="Settings & Backups"
+          class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/70 border border-slate-200 bg-white transition cursor-pointer">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>Settings</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 1. TOP KPI SUMMARY DASHBOARD -->
+    <section aria-label="Summary Metrics" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      
+      <!-- Card 1: Cumulative Running Balance (+/-) -->
+      <div id="cumulativeCard" class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Cumulative Balance</p>
+            <p class="text-[11px] text-slate-400 mt-0.5" id="cumulativeSubLabel">All tracked weeks (Mon–Sun)</p>
+          </div>
+          <span id="cumulativeStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+            On Track
+          </span>
+        </div>
+
+        <div class="mt-4 flex items-baseline gap-2">
+          <span id="kpiCumulativeValue" class="text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums text-slate-900">
+            +0h 00m
+          </span>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>Total logged: <strong id="kpiTotalLoggedAll" class="font-semibold text-slate-700 tabular-nums">0h 00m</strong></span>
+          <span>Target: <strong id="kpiTotalTargetAll" class="font-semibold text-slate-700 tabular-nums">30h 00m</strong></span>
+        </div>
+      </div>
+
+      <!-- Card 2: Current Week Progress -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm flex flex-col justify-between">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">This Week</p>
+            <p id="kpiCurrentWeekRange" class="text-[11px] text-slate-400 mt-0.5">Mon – Sun</p>
+          </div>
+          <span id="kpiWeekVarianceBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 tabular-nums">
+            30h 00m left
+          </span>
+        </div>
+
+        <div class="mt-4">
+          <div class="flex items-baseline justify-between gap-2">
+            <span id="kpiCurrentWeekLogged" class="text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums text-slate-900">
+              0h 00m
+            </span>
+            <span id="kpiCurrentWeekTarget" class="text-xs font-medium text-slate-400 tabular-nums">
+              / 30h 00m
+            </span>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden mt-3">
+            <div id="kpiWeekProgressBar" class="h-full bg-indigo-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span id="kpiWeekPercent">0% of weekly goal</span>
+          <span id="kpiWeekSessionCount" class="tabular-nums">0 sessions</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Today's Total -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm flex flex-col justify-between">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Today's Total</p>
+            <p id="kpiTodayDate" class="text-[11px] text-slate-400 mt-0.5">Today</p>
+          </div>
+          <span id="kpiTodayLivePill" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-soft-pulse"></span>
+            Live
+          </span>
+        </div>
+
+        <div class="mt-4 flex items-baseline gap-2">
+          <span id="kpiTodayLogged" class="text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums text-slate-900">
+            0h 00m
+          </span>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span id="kpiTodayBlocksLabel">No blocks logged yet today</span>
+          <span class="text-slate-400">6h/day avg</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 2 & 3. ACTION DECK: LIVE TIMER + QUICK MANUAL ENTRY -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left (5 cols): Live Clock In / Clock Out Card -->
+      <div id="timerPanel" class="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-sm flex flex-col justify-between transition-colors">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span id="timerStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+              <h2 class="text-sm font-bold text-slate-900">Live Work Timer</h2>
+            </div>
+            <span id="timerStartedAtLabel" class="text-xs font-medium text-slate-400 tabular-nums">Ready to clock in</span>
+          </div>
+
+          <!-- Digital Readout -->
+          <div class="my-5 py-5 px-4 rounded-2xl bg-slate-50 border border-slate-200/70 text-center">
+            <div id="liveTimerDisplay" class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+              00:00:00
+            </div>
+            <p id="liveTimerSubtext" class="text-xs text-slate-500 mt-1.5">
+              Tap below when you start a work block—even for 15 minutes
+            </p>
+          </div>
+
+          <!-- Optional Tag / Note while working -->
+          <div class="space-y-2">
+            <label for="liveNoteInput" class="block text-xs font-medium text-slate-600">
+              Current block note <span class="text-slate-400 font-normal">(optional)</span>
+            </label>
+            <input id="liveNoteInput" type="text" placeholder="e.g., Morning focus, Post-school run..."
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition" />
+            
+            <!-- Quick Preset Pills for Live Timer -->
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <button type="button" data-live-preset="Morning block" class="live-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Morning</button>
+              <button type="button" data-live-preset="Post-lunch" class="live-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Post-lunch</button>
+              <button type="button" data-live-preset="Post-school run" class="live-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Post-school run</button>
+              <button type="button" data-live-preset="Evening catch-up" class="live-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Evening</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clock In / Clock Out Primary Button -->
+        <div class="mt-5 pt-2 flex items-center gap-2">
+          <button id="btnToggleTimer" type="button"
+            class="w-full py-3.5 px-5 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] shadow-sm shadow-indigo-200 flex items-center justify-center gap-2 transition cursor-pointer">
+            <svg id="timerBtnIconPlay" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+            </svg>
+            <svg id="timerBtnIconStop" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20">
+              <rect x="4.5" y="4.5" width="11" height="11" rx="2" />
+            </svg>
+            <span id="timerBtnText">Clock In</span>
+          </button>
+
+          <button id="btnDiscardTimer" type="button" title="Discard active timer without saving"
+            class="hidden py-3.5 px-3.5 rounded-xl font-medium text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer">
+            Discard
+          </button>
+        </div>
+      </div>
+
+      <!-- Right (7 cols): Quick Manual & Evening/Weekend Entry -->
+      <div class="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Quick Log a Work Block</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Add past sessions, evening catch-ups, or weekend hours</p>
+            </div>
+
+            <!-- Mode Switcher: Quick Duration vs Start & End Time -->
+            <div class="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/70">
+              <button id="tabModeDuration" type="button"
+                class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-xs transition cursor-pointer">
+                Quick Duration
+              </button>
+              <button id="tabModeRange" type="button"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer">
+                Start &amp; End
+              </button>
+            </div>
+          </div>
+
+          <form id="manualEntryForm" class="space-y-4">
+            <!-- Row 1: Date + Duration OR Start/End Times -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <!-- Date -->
+              <div class="sm:col-span-5">
+                <label for="entryDate" class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+                <input id="entryDate" type="date" required
+                  class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 tabular-nums" />
+              </div>
+
+              <!-- Mode A: Quick Duration (Hours + Minutes) -->
+              <div id="fieldsDurationMode" class="sm:col-span-7 grid grid-cols-2 gap-2.5">
+                <div>
+                  <label for="entryHours" class="block text-xs font-medium text-slate-600 mb-1">Hours</label>
+                  <input id="entryHours" type="number" min="0" max="24" step="1" value="1"
+                    class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 tabular-nums" />
+                </div>
+                <div>
+                  <label for="entryMinutes" class="block text-xs font-medium text-slate-600 mb-1">Minutes</label>
+                  <input id="entryMinutes" type="number" min="0" max="59" step="5" value="0"
+                    class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 tabular-nums" />
+                </div>
+              </div>
+
+              <!-- Mode B: Start & End Time -->
+              <div id="fieldsRangeMode" class="hidden sm:col-span-7 grid grid-cols-2 gap-2.5">
+                <div>
+                  <label for="entryStartTime" class="block text-xs font-medium text-slate-600 mb-1">Start Time</label>
+                  <input id="entryStartTime" type="time" value="09:00"
+                    class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 tabular-nums" />
+                </div>
+                <div>
+                  <label for="entryEndTime" class="block text-xs font-medium text-slate-600 mb-1">End Time</label>
+                  <input id="entryEndTime" type="time" value="10:30"
+                    class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 tabular-nums" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Duration Shortcut Buttons (only visible in Duration mode) -->
+            <div id="quickDurationBar" class="flex flex-wrap items-center gap-1.5">
+              <span class="text-[11px] font-medium text-slate-400 mr-1">Quick add:</span>
+              <button type="button" data-dur-h="0" data-dur-m="30" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+30m</button>
+              <button type="button" data-dur-h="0" data-dur-m="45" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+45m</button>
+              <button type="button" data-dur-h="1" data-dur-m="0" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+1h</button>
+              <button type="button" data-dur-h="1" data-dur-m="30" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+1h 30m</button>
+              <button type="button" data-dur-h="2" data-dur-m="0" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+2h</button>
+              <button type="button" data-dur-h="3" data-dur-m="0" class="dur-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition cursor-pointer tabular-nums">+3h</button>
+            </div>
+
+            <!-- Row 2: Note & Presets -->
+            <div>
+              <label for="entryNote" class="block text-xs font-medium text-slate-600 mb-1">
+                Label / Note <span class="text-slate-400 font-normal">(optional)</span>
+              </label>
+              <input id="entryNote" type="text" placeholder="e.g., After school pick-up, Saturday morning catch-up..."
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition" />
+              
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <button type="button" data-entry-preset="Morning" class="entry-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Morning</button>
+                <button type="button" data-entry-preset="Post-Lunch" class="entry-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Post-Lunch</button>
+                <button type="button" data-entry-preset="Post-School Run" class="entry-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Post-School Run</button>
+                <button type="button" data-entry-preset="Evening" class="entry-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Evening</button>
+                <button type="button" data-entry-preset="Weekend" class="entry-preset-chip px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition cursor-pointer">Weekend</button>
+              </div>
+            </div>
+
+            <!-- Submit Bar -->
+            <div class="pt-1 flex items-center justify-between gap-3">
+              <span id="calculatedDurationPreview" class="text-xs font-medium text-slate-500 tabular-nums">
+                Adding: <strong class="text-slate-800">1h 00m</strong>
+              </span>
+              <button type="submit"
+                class="px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.99] shadow-xs flex items-center gap-2 transition cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Work Block</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. WEEKLY BREAKDOWN & SESSION HISTORY -->
+    <section aria-label="Weekly Breakdown" class="space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Weekly Breakdown &amp; Running Roll-Over</h2>
+          <p class="text-xs text-slate-500">Monday–Sunday weeks with your surplus or deficit carried forward automatically</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btnLoadSample" type="button"
+            class="px-3 py-1.5 rounded-xl text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 transition cursor-pointer">
+            Load Sample Week
+          </button>
+        </div>
+      </div>
+
+      <!-- Weeks Container -->
+      <div id="weeksListContainer" class="space-y-3">
+        <!-- Rendered dynamically by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 border-t border-slate-200/70 text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2">
+    <p>All entries are saved privately in your browser's local storage.</p>
+    <p>Tip: Export a JSON backup periodically or save this page to your Home Screen.</p>
+  </footer>
+
+  <!-- EDIT SESSION MODAL -->
+  <div id="editModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-900">Edit Work Block</h3>
+        <button type="button" id="btnCloseEditModal" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="editSessionForm" class="space-y-3.5">
+        <input type="hidden" id="editSessionId" />
+        <div>
+          <label for="editDate" class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+          <input id="editDate" type="date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm tabular-nums" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="editHours" class="block text-xs font-medium text-slate-600 mb-1">Hours</label>
+            <input id="editHours" type="number" min="0" max="24" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm tabular-nums" />
+          </div>
+          <div>
+            <label for="editMinutes" class="block text-xs font-medium text-slate-600 mb-1">Minutes</label>
+            <input id="editMinutes" type="number" min="0" max="59" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm tabular-nums" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="editStartTime" class="block text-xs font-medium text-slate-600 mb-1">Start Time <span class="text-slate-400">(opt)</span></label>
+            <input id="editStartTime" type="time" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm tabular-nums" />
+          </div>
+          <div>
+            <label for="editEndTime" class="block text-xs font-medium text-slate-600 mb-1">End Time <span class="text-slate-400">(opt)</span></label>
+            <input id="editEndTime" type="time" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm tabular-nums" />
+          </div>
+        </div>
+
+        <div>
+          <label for="editNote" class="block text-xs font-medium text-slate-600 mb-1">Note / Label</label>
+          <input id="editNote" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" id="btnCancelEdit" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer">
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SETTINGS & DATA BACKUP MODAL -->
+  <div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Flexitime Settings &amp; Backups</h3>
+          <p class="text-xs text-slate-500">Customize your weekly target and export or restore data</p>
+        </div>
+        <button type="button" id="btnCloseSettingsModal" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Target Settings Form -->
+      <form id="settingsForm" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="settingWeeklyHours" class="block text-xs font-semibold text-slate-700 mb-1">Weekly Target (Hours)</label>
+            <input id="settingWeeklyHours" type="number" min="1" max="100" step="0.5" required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm tabular-nums" />
+            <p class="text-[11px] text-slate-400 mt-1">Default is 30 hours per Mon–Sun week.</p>
+          </div>
+
+          <div>
+            <label for="settingStartDate" class="block text-xs font-semibold text-slate-700 mb-1">Tracking Start Date</label>
+            <input id="settingStartDate" type="date"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm tabular-nums" />
+            <p class="text-[11px] text-slate-400 mt-1">Weeks before this Monday are ignored.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer">
+            Save Settings
+          </button>
+        </div>
+      </form>
+
+      <!-- Portability / Backup Section -->
+      <div class="border-t border-slate-100 pt-4 space-y-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Data Portability</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button type="button" id="btnSettingsExportCsv"
+            class="px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>Export CSV</span>
+          </button>
+
+          <button type="button" id="btnExportJson"
+            class="px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>Backup JSON</span>
+          </button>
+
+          <label class="px-3 py-2.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>Restore JSON</span>
+            <input id="inputImportJson" type="file" accept=".json,application/json" class="hidden" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Danger / Demo Zone -->
+      <div class="border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-2">
+        <button type="button" id="btnClearDemoOrAll"
+          class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200/80 transition cursor-pointer">
+          Reset All Data
+        </button>
+        <span class="text-[11px] text-slate-400">Stored locally in browser</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION MODAL (Replaces browser confirm()) -->
+  <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200 space-y-4">
+      <h3 id="confirmTitle" class="text-base font-bold text-slate-900">Confirm Action</h3>
+      <p id="confirmMessage" class="text-xs text-slate-600 leading-relaxed">Are you sure?</p>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" id="btnConfirmCancel" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
+          Cancel
+        </button>
+        <button type="button" id="btnConfirmProceed" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION BANNER -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    /**
+     * FlexiLog — Personal Fragmented Work Hours & 30h/wk Flexitime Tracker
+     * Architecture:
+     * - Pure client-side state persisted in localStorage under STORAGE_KEY.
+     * - All dates normalized to local YYYY-MM-DD strings so timezone shifts never move a late-night block into another day unintentionally.
+     * - Week cycle strictly Monday (day 1) through Sunday (day 7).
+     */
+
+    const STORAGE_KEY = 'flexilog_v1_data';
+
+    // Default Application State
+    let appState = {
+      settings: {
+        weeklyTargetHours: 30,
+        trackingStartDate: '', // YYYY-MM-DD (Monday of starting week, or empty to derive from earliest session / current week)
+      },
+      sessions: [], // { id, date: 'YYYY-MM-DD', durationMinutes: number, startTime?: 'HH:MM', endTime?: 'HH:MM', note: string, isSample?: boolean }
+      activeTimer: null, // { startTimestamp: number, startDate: 'YYYY-MM-DD', startTimeStr: 'HH:MM', note: string }
+      expandedWeeks: {} // { 'YYYY-MM-DD': boolean }
+    };
+
+    let manualInputMode = 'duration'; // 'duration' | 'range'
+    let timerInterval = null;
+    let pendingConfirmCallback = null;
+
+    /* ==========================================================================
+       DATE & TIME UTILITIES (LOCAL TIMEZONE SAFE)
+       ========================================================================== */
+
+    /** Returns local YYYY-MM-DD for a Date object */
+    function toLocalDateStr(dateObj = new Date()) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    /** Parses 'YYYY-MM-DD' into a local Date at 00:00:00 */
+    function parseLocalDate(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d, 0, 0, 0, 0);
+    }
+
+    /** Returns the Monday ('YYYY-MM-DD') of the week containing dateStr */
+    function getMondayOfWeek(dateStr) {
+      const dt = parseLocalDate(dateStr);
+      const day = dt.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      dt.setDate(dt.getDate() + diffToMonday);
+      return toLocalDateStr(dt);
+    }
+
+    /** Adds N days to a 'YYYY-MM-DD' string */
+    function addDays(dateStr, days) {
+      const dt = parseLocalDate(dateStr);
+      dt.setDate(dt.getDate() + days);
+      return toLocalDateStr(dt);
+    }
+
+    /** Formats a week range like "16 Nov – 22 Nov 2026" */
+    function formatWeekRangeLabel(mondayStr) {
+      const mon = parseLocalDate(mondayStr);
+      const sun = parseLocalDate(addDays(mondayStr, 6));
+      const optsShort = { day: 'numeric', month: 'short' };
+      const optsYear = { day: 'numeric', month: 'short', year: 'numeric' };
+      if (mon.getFullYear() === sun.getFullYear()) {
+        return `${mon.toLocaleDateString('en-GB', optsShort)} – ${sun.toLocaleDateString('en-GB', optsYear)}`;
+      }
+      return `${mon.toLocaleDateString('en-GB', optsYear)} – ${sun.toLocaleDateString('en-GB', optsYear)}`;
+    }
+
+    /** Formats a single day heading like "Thu, 19 Nov" */
+    function formatDayHeading(dateStr) {
+      const todayStr = toLocalDateStr();
+      const yesterdayStr = addDays(todayStr, -1);
+      const dt = parseLocalDate(dateStr);
+      const formatted = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      if (dateStr === todayStr) return `Today · ${formatted}`;
+      if (dateStr === yesterdayStr) return `Yesterday · ${formatted}`;
+      return formatted;
+    }
+
+    /** Formats minutes into "Xh YYm" */
+    function formatMinutes(totalMinutes) {
+      const absMin = Math.round(Math.abs(totalMinutes));
+      const h = Math.floor(absMin / 60);
+      const m = absMin % 60;
+      return `${h}h ${String(m).padStart(2, '0')}m`;
+    }
+
+    /** Formats signed balance minutes into "+Xh YYm" or "-Xh YYm" */
+    function formatSignedMinutes(deltaMinutes) {
+      const rounded = Math.round(deltaMinutes);
+      const sign = rounded >= 0 ? '+' : '-';
+      return `${sign}${formatMinutes(rounded)}`;
+    }
+
+    /** Formats HH:MM from a Date object */
+    function formatTimeHHMM(dateObj) {
+      return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+    }
+
+    /** Calculates minutes between two 'HH:MM' strings (supports crossing midnight) */
+    function calcMinutesBetweenTimes(startStr, endStr) {
+      if (!startStr || !endStr) return 0;
+      const [sh, sm] = startStr.split(':').map(Number);
+      const [eh, em] = endStr.split(':').map(Number);
+      let startTotal = sh * 60 + sm;
+      let endTotal = eh * 60 + em;
+      if (endTotal <= startTotal) {
+        // Assume overnight block if end <= start
+        endTotal += 24 * 60;
+      }
+      return endTotal - startTotal;
+    }
+
+    /** Generates a clean unique ID */
+    function generateId() {
+      return 'blk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+    }
+
+    /* ==========================================================================
+       PERSISTENCE & TOAST / MODAL HELPERS
+       ========================================================================== */
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.error('Failed to save state:', err);
+        showToast('Could not save to browser storage.', 'error');
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          appState.settings = {
+            weeklyTargetHours: Number(parsed.settings?.weeklyTargetHours) || 30,
+            trackingStartDate: parsed.settings?.trackingStartDate || '',
+          };
+          appState.sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+          appState.activeTimer = parsed.activeTimer || null;
+          appState.expandedWeeks = parsed.expandedWeeks || {};
+        }
+      } catch (err) {
+        console.error('Failed to load state:', err);
+      }
+
+      // Ensure current week is expanded by default if not explicitly collapsed
+      const currentMonday = getMondayOfWeek(toLocalDateStr());
+      if (appState.expandedWeeks[currentMonday] === undefined) {
+        appState.expandedWeeks[currentMonday] = true;
+      }
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const colors = type === 'error'
+        ? 'bg-rose-900 text-white border-rose-700'
+        : 'bg-slate-900 text-white border-slate-700';
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl text-xs font-medium shadow-lg border ${colors} transition-all duration-300 transform translate-y-2 opacity-0`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function openConfirmModal(title, message, onConfirm) {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      pendingConfirmCallback = onConfirm;
+      const modal = document.getElementById('confirmModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeConfirmModal() {
+      pendingConfirmCallback = null;
+      const modal = document.getElementById('confirmModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    /* ==========================================================================
+       CORE FLEXITIME CALCULATION ENGINE
+       ========================================================================== */
+
+    /** Returns live elapsed minutes if timer is currently running */
+    function getLiveElapsedMinutes() {
+      if (!appState.activeTimer) return 0;
+      const elapsedMs = Math.max(0, Date.now() - appState.activeTimer.startTimestamp);
+      return elapsedMs / 60000;
+    }
+
+    /**
+     * Builds the complete chronological list of Monday–Sunday weeks from the tracking start week
+     * through the latest week (at least current week), calculating weekly totals, weekly variances,
+     * and cumulative roll-over balances.
+     */
+    function computeWeeklyLedger() {
+      const todayStr = toLocalDateStr();
+      const currentMonday = getMondayOfWeek(todayStr);
+      const targetMinutesPerWeek = Math.round(appState.settings.weeklyTargetHours * 60);
+
+      // Determine earliest week to track
+      let earliestMonday = currentMonday;
+
+      if (appState.settings.trackingStartDate) {
+        earliestMonday = getMondayOfWeek(appState.settings.trackingStartDate);
+      } else if (appState.sessions.length > 0) {
+        const sortedDates = appState.sessions.map(s => s.date).sort();
+        const firstSessionMonday = getMondayOfWeek(sortedDates[0]);
+        if (firstSessionMonday < earliestMonday) {
+          earliestMonday = firstSessionMonday;
+        }
+      }
+
+      // Determine latest week (in case user logged future weekend blocks)
+      let latestMonday = currentMonday;
+      appState.sessions.forEach(s => {
+        const m = getMondayOfWeek(s.date);
+        if (m > latestMonday) latestMonday = m;
+      });
+
+      // Generate contiguous list of Mondays from earliestMonday to latestMonday
+      const weeks = [];
+      let cursor = earliestMonday;
+      let safety = 0;
+      while (cursor <= latestMonday && safety < 520) {
+        weeks.push({
+          mondayStr: cursor,
+          sundayStr: addDays(cursor, 6),
+          isCurrentWeek: cursor === currentMonday,
+          sessions: [],
+          loggedMinutes: 0,
+          liveMinutes: 0,
+          targetMinutes: targetMinutesPerWeek,
+          weekVarianceMinutes: 0,
+          cumulativeBalanceMinutes: 0
+        });
+        cursor = addDays(cursor, 7);
+        safety++;
+      }
+
+      const weekMap = new Map(weeks.map(w => [w.mondayStr, w]));
+
+      // Assign sessions to their respective weeks (ignoring sessions before trackingStartDate if set)
+      appState.sessions.forEach(session => {
+        const m = getMondayOfWeek(session.date);
+        if (weekMap.has(m)) {
+          const w = weekMap.get(m);
+          w.sessions.push(session);
+          w.loggedMinutes += Number(session.durationMinutes) || 0;
+        }
+      });
+
+      // Add live timer minutes to its start week
+      if (appState.activeTimer) {
+        const timerMonday = getMondayOfWeek(appState.activeTimer.startDate);
+        if (weekMap.has(timerMonday)) {
+          weekMap.get(timerMonday).liveMinutes = getLiveElapsedMinutes();
+        }
+      }
+
+      // Compute chronological roll-over balance
+      let runningBalance = 0;
+      let totalLoggedAllWeeks = 0;
+      let totalTargetAllWeeks = 0;
+
+      weeks.forEach(w => {
+        const effectiveLogged = w.loggedMinutes + w.liveMinutes;
+        w.weekVarianceMinutes = effectiveLogged - w.targetMinutes;
+        runningBalance += w.weekVarianceMinutes;
+        w.cumulativeBalanceMinutes = runningBalance;
+
+        totalLoggedAllWeeks += effectiveLogged;
+        totalTargetAllWeeks += w.targetMinutes;
+
+        // Sort sessions within the week chronologically (date desc, then startTime desc)
+        w.sessions.sort((a, b) => {
+          if (a.date !== b.date) return b.date.localeCompare(a.date);
+          return (b.startTime || '').localeCompare(a.startTime || '');
+        });
+      });
+
+      return {
+        weeks,
+        currentWeek: weekMap.get(currentMonday) || weeks[weeks.length - 1],
+        cumulativeBalanceMinutes: runningBalance,
+        totalLoggedAllWeeks,
+        totalTargetAllWeeks
+      };
+    }
+
+    /* ==========================================================================
+       UI RENDERING
+       ========================================================================== */
+
+    function renderAll() {
+      const ledger = computeWeeklyLedger();
+      renderHeaderAndKPIs(ledger);
+      renderTimerUI();
+      renderWeeklyAccordion(ledger);
+    }
+
+    function renderHeaderAndKPIs(ledger) {
+      const targetH = appState.settings.weeklyTargetHours;
+      document.getElementById('headerTargetBadge').textContent = `${targetH}h / wk`;
+
+      // 1. Cumulative Balance Card
+      const cumMins = ledger.cumulativeBalanceMinutes;
+      const cumEl = document.getElementById('kpiCumulativeValue');
+      const cumBadge = document.getElementById('cumulativeStatusBadge');
+      cumEl.textContent = formatSignedMinutes(cumMins);
+
+      if (Math.round(cumMins) > 0) {
+        cumEl.className = 'text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums text-emerald-600';
+        cumBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70';
+        cumBadge.textContent = 'Surplus';
+      } else if (Math.round(cumMins) < 0) {
+        cumEl.className = 'text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums text-amber-600';
+        cumBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70';
+        cumBadge.textContent = 'Deficit';
+      } else {
+        cumEl.className = 'text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums text-slate-900';
+        cumBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700';
+        cumBadge.textContent = 'Balanced';
+      }
+
+      document.getElementById('cumulativeSubLabel').textContent =
+        `${ledger.weeks.length} tracked week${ledger.weeks.length === 1 ? '' : 's'} (Mon–Sun)`;
+      document.getElementById('kpiTotalLoggedAll').textContent = formatMinutes(ledger.totalLoggedAllWeeks);
+      document.getElementById('kpiTotalTargetAll').textContent = formatMinutes(ledger.totalTargetAllWeeks);
+
+      // 2. Current Week Card
+      const cw = ledger.currentWeek;
+      const cwEffective = cw.loggedMinutes + cw.liveMinutes;
+      const cwRemaining = cw.targetMinutes - cwEffective;
+      const cwPct = cw.targetMinutes > 0 ? Math.min(100, Math.round((cwEffective / cw.targetMinutes) * 100)) : 0;
+
+      document.getElementById('kpiCurrentWeekRange').textContent = formatWeekRangeLabel(cw.mondayStr);
+      document.getElementById('kpiCurrentWeekLogged').textContent = formatMinutes(cwEffective);
+      document.getElementById('kpiCurrentWeekTarget').textContent = `/ ${formatMinutes(cw.targetMinutes)}`;
+
+      const bar = document.getElementById('kpiWeekProgressBar');
+      bar.style.width = `${cwPct}%`;
+      bar.className = cwEffective >= cw.targetMinutes
+        ? 'h-full bg-emerald-500 rounded-full transition-all duration-300'
+        : 'h-full bg-indigo-600 rounded-full transition-all duration-300';
+
+      const weekBadge = document.getElementById('kpiWeekVarianceBadge');
+      if (cwRemaining > 0) {
+        weekBadge.textContent = `${formatMinutes(cwRemaining)} left`;
+        weekBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 tabular-nums';
+      } else {
+        weekBadge.textContent = `+${formatMinutes(Math.abs(cwRemaining))} over`;
+        weekBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70 tabular-nums';
+      }
+
+      document.getElementById('kpiWeekPercent').textContent = `${cwPct}% of weekly goal`;
+      const totalSessionsCount = cw.sessions.length + (appState.activeTimer && getMondayOfWeek(appState.activeTimer.startDate) === cw.mondayStr ? 1 : 0);
+      document.getElementById('kpiWeekSessionCount').textContent = `${totalSessionsCount} block${totalSessionsCount === 1 ? '' : 's'}`;
+
+      // 3. Today's Total Card
+      const todayStr = toLocalDateStr();
+      const todaySessions = appState.sessions.filter(s => s.date === todayStr);
+      const todaySavedMins = todaySessions.reduce((acc, s) => acc + (Number(s.durationMinutes) || 0), 0);
+      const todayLiveMins = (appState.activeTimer && appState.activeTimer.startDate === todayStr) ? getLiveElapsedMinutes() : 0;
+      const todayTotalMins = todaySavedMins + todayLiveMins;
+
+      document.getElementById('kpiTodayDate').textContent = parseLocalDate(todayStr).toLocaleDateString('en-GB', {
+        weekday: 'long', day: 'numeric', month: 'short'
+      });
+      document.getElementById('kpiTodayLogged').textContent = formatMinutes(todayTotalMins);
+
+      const livePill = document.getElementById('kpiTodayLivePill');
+      if (todayLiveMins > 0) {
+        livePill.classList.remove('hidden');
+      } else {
+        livePill.classList.add('hidden');
+      }
+
+      const todayBlockCount = todaySessions.length + (todayLiveMins > 0 ? 1 : 0);
+      document.getElementById('kpiTodayBlocksLabel').textContent = todayBlockCount === 0
+        ? 'No blocks logged yet today'
+        : `${todayBlockCount} fragmented block${todayBlockCount === 1 ? '' : 's'} today`;
+    }
+
+    function renderTimerUI() {
+      const panel = document.getElementById('timerPanel');
+      const dot = document.getElementById('timerStatusDot');
+      const startedLabel = document.getElementById('timerStartedAtLabel');
+      const display = document.getElementById('liveTimerDisplay');
+      const subtext = document.getElementById('liveTimerSubtext');
+      const btn = document.getElementById('btnToggleTimer');
+      const btnText = document.getElementById('timerBtnText');
+      const iconPlay = document.getElementById('timerBtnIconPlay');
+      const iconStop = document.getElementById('timerBtnIconStop');
+      const discardBtn = document.getElementById('btnDiscardTimer');
+      const noteInput = document.getElementById('liveNoteInput');
+
+      if (appState.activeTimer) {
+        const elapsedSec = Math.max(0, Math.floor((Date.now() - appState.activeTimer.startTimestamp) / 1000));
+        const hrs = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
+        const secs = String(elapsedSec % 60).padStart(2, '0');
+
+        display.textContent = `${hrs}:${mins}:${secs}`;
+        panel.classList.add('ring-2', 'ring-emerald-500/30', 'border-emerald-300');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-soft-pulse';
+        startedLabel.textContent = `Started at ${appState.activeTimer.startTimeStr}`;
+        startedLabel.className = 'text-xs font-semibold text-emerald-700 tabular-nums';
+        subtext.textContent = 'Session running — safely persisted if you close this tab';
+
+        btn.className = 'w-full py-3.5 px-5 rounded-xl font-semibold text-sm text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] shadow-sm shadow-emerald-200 flex items-center justify-center gap-2 transition cursor-pointer';
+        btnText.textContent = 'Clock Out & Save Block';
+        iconPlay.classList.add('hidden');
+        iconStop.classList.remove('hidden');
+        discardBtn.classList.remove('hidden');
+
+        if (document.activeElement !== noteInput && noteInput.value !== (appState.activeTimer.note || '')) {
+          noteInput.value = appState.activeTimer.note || '';
+        }
+      } else {
+        display.textContent = '00:00:00';
+        panel.classList.remove('ring-2', 'ring-emerald-500/30', 'border-emerald-300');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-300';
+        startedLabel.textContent = 'Ready to clock in';
+        startedLabel.className = 'text-xs font-medium text-slate-400 tabular-nums';
+        subtext.textContent = 'Tap below when you start a work block—even for 15 minutes';
+
+        btn.className = 'w-full py-3.5 px-5 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] shadow-sm shadow-indigo-200 flex items-center justify-center gap-2 transition cursor-pointer';
+        btnText.textContent = 'Clock In';
+        iconPlay.classList.remove('hidden');
+        iconStop.classList.add('hidden');
+        discardBtn.classList.add('hidden');
+      }
+    }
+
+    function renderWeeklyAccordion(ledger) {
+      const container = document.getElementById('weeksListContainer');
+      container.innerHTML = '';
+
+      // Show most recent week at the top
+      const reversedWeeks = [...ledger.weeks].reverse();
+
+      reversedWeeks.forEach(week => {
+        const isExpanded = !!appState.expandedWeeks[week.mondayStr];
+        const effectiveLogged = week.loggedMinutes + week.liveMinutes;
+        const weekVar = week.weekVarianceMinutes;
+        const cumVar = week.cumulativeBalanceMinutes;
+
+        const weekVarClass = Math.round(weekVar) > 0
+          ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70'
+          : Math.round(weekVar) < 0
+            ? 'text-amber-700 bg-amber-50 border-amber-200/70'
+            : 'text-slate-600 bg-slate-100 border-slate-200/70';
+
+        const cumVarClass = Math.round(cumVar) >= 0 ? 'text-emerald-600' : 'text-amber-600';
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden';
+
+        // Accordion Header Button
+        const headerBtn = document.createElement('button');
+        headerBtn.type = 'button';
+        headerBtn.className = 'w-full px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left hover:bg-slate-50/80 transition cursor-pointer';
+        headerBtn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-bold text-slate-900">${formatWeekRangeLabel(week.mondayStr)}</span>
+                ${week.isCurrentWeek ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-indigo-600 text-white">Current Week</span>' : ''}
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5 tabular-nums">
+                Logged <strong class="text-slate-700">${formatMinutes(effectiveLogged)}</strong> of ${formatMinutes(week.targetMinutes)} target
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between sm:justify-end gap-3 pl-10 sm:pl-0">
+            <div class="text-left sm:text-right">
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Week +/-</span>
+              <span class="inline-block mt-0.5 px-2 py-0.5 rounded-md text-xs font-bold border tabular-nums ${weekVarClass}">
+                ${formatSignedMinutes(weekVar)}
+              </span>
+            </div>
+
+            <div class="h-7 w-px bg-slate-200/80"></div>
+
+            <div class="text-right min-w-[82px]">
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Running Total</span>
+              <span class="block mt-0.5 text-sm font-extrabold tabular-nums ${cumVarClass}">
+                ${formatSignedMinutes(cumVar)}
+              </span>
+            </div>
+          </div>
+        `;
+
+        headerBtn.addEventListener('click', () => {
+          appState.expandedWeeks[week.mondayStr] = !isExpanded;
+          saveState();
+          renderWeeklyAccordion(ledger);
+        });
+
+        card.appendChild(headerBtn);
+
+        // Accordion Body (Days & Sessions)
+        if (isExpanded) {
+          const body = document.createElement('div');
+          body.className = 'border-t border-slate-100 bg-slate-50/50 px-4 sm:px-5 py-4 space-y-4';
+
+          // Check if active timer belongs to this week
+          const hasActiveInWeek = appState.activeTimer && getMondayOfWeek(appState.activeTimer.startDate) === week.mondayStr;
+
+          if (week.sessions.length === 0 && !hasActiveInWeek) {
+            body.innerHTML = `
+              <div class="py-6 text-center space-y-2">
+                <p class="text-xs font-medium text-slate-500">No work blocks logged for this week yet.</p>
+                <p class="text-[11px] text-slate-400">Clock in above or use Quick Log to add your morning, evening, or weekend hours.</p>
+              </div>
+            `;
+          } else {
+            // Group sessions by date
+            const dayGroups = new Map();
+            if (hasActiveInWeek) {
+              dayGroups.set(appState.activeTimer.startDate, []);
+            }
+            week.sessions.forEach(s => {
+              if (!dayGroups.has(s.date)) dayGroups.set(s.date, []);
+              dayGroups.get(s.date).push(s);
+            });
+
+            // Sort dates descending
+            const sortedDayKeys = Array.from(dayGroups.keys()).sort((a, b) => b.localeCompare(a));
+
+            sortedDayKeys.forEach(dateStr => {
+              const daySessions = dayGroups.get(dateStr);
+              const daySavedMins = daySessions.reduce((sum, s) => sum + (Number(s.durationMinutes) || 0), 0);
+              const dayLiveMins = (hasActiveInWeek && appState.activeTimer.startDate === dateStr) ? getLiveElapsedMinutes() : 0;
+
+              const daySection = document.createElement('div');
+              daySection.className = 'bg-white rounded-xl border border-slate-200/80 overflow-hidden';
+
+              // Day Header
+              const dayHeader = document.createElement('div');
+              dayHeader.className = 'px-3.5 py-2.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between text-xs';
+              dayHeader.innerHTML = `
+                <span class="font-bold text-slate-700">${formatDayHeading(dateStr)}</span>
+                <span class="font-semibold text-slate-600 tabular-nums">Day total: <strong class="text-slate-900">${formatMinutes(daySavedMins + dayLiveMins)}</strong></span>
+              `;
+              daySection.appendChild(dayHeader);
+
+              // Session Rows
+              const listEl = document.createElement('div');
+              listEl.className = 'divide-y divide-slate-100';
+
+              // Live active block row if applicable
+              if (hasActiveInWeek && appState.activeTimer.startDate === dateStr) {
+                const liveRow = document.createElement('div');
+                liveRow.className = 'px-3.5 py-2.5 bg-emerald-50/50 flex items-center justify-between gap-3 text-xs';
+                liveRow.innerHTML = `
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-soft-pulse shrink-0"></span>
+                    <div class="truncate">
+                      <span class="font-semibold text-emerald-900">${escapeHtml(appState.activeTimer.note || 'Active work session')}</span>
+                      <span class="text-emerald-700/80 ml-1.5 tabular-nums">Started ${appState.activeTimer.startTimeStr} – Now</span>
+                    </div>
+                  </div>
+                  <span class="font-bold text-emerald-700 tabular-nums shrink-0">${formatMinutes(dayLiveMins)}</span>
+                `;
+                listEl.appendChild(liveRow);
+              }
+
+              daySessions.forEach(session => {
+                const row = document.createElement('div');
+                row.className = 'px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs hover:bg-slate-50/70 transition group';
+
+                const timeRangeBadge = (session.startTime && session.endTime)
+                  ? `<span class="text-slate-400 tabular-nums">${session.startTime} – ${session.endTime}</span>`
+                  : `<span class="text-slate-400">Quick block</span>`;
+
+                row.innerHTML = `
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
+                    <div class="min-w-0">
+                      <p class="font-medium text-slate-800 truncate">${escapeHtml(session.note || 'Work block')}</p>
+                      <div class="flex items-center gap-2 mt-0.5 text-[11px]">
+                        ${timeRangeBadge}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2.5 shrink-0">
+                    <span class="font-bold text-slate-800 tabular-nums text-xs sm:text-sm">${formatMinutes(session.durationMinutes)}</span>
+                    <div class="flex items-center gap-1">
+                      <button type="button" data-edit-id="${session.id}" title="Edit block"
+                        class="btn-edit-session p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button type="button" data-delete-id="${session.id}" title="Delete block"
+                        class="btn-delete-session p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                `;
+                listEl.appendChild(row);
+              });
+
+              daySection.appendChild(listEl);
+              body.appendChild(daySection);
+            });
+          }
+
+          card.appendChild(body);
+        }
+
+        container.appendChild(card);
+      });
+
+      // Attach Edit & Delete handlers
+      container.querySelectorAll('.btn-edit-session').forEach(btn => {
+        btn.addEventListener('click', () => openEditSessionModal(btn.dataset.editId));
+      });
+      container.querySelectorAll('.btn-delete-session').forEach(btn => {
+        btn.addEventListener('click', () => deleteSession(btn.dataset.deleteId));
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /* ==========================================================================
+       LIVE TIMER ACTIONS
+       ========================================================================== */
+
+    function toggleTimer() {
+      if (!appState.activeTimer) {
+        // Clock In
+        const now = new Date();
+        const noteVal = document.getElementById('liveNoteInput').value.trim();
+        appState.activeTimer = {
+          startTimestamp: now.getTime(),
+          startDate: toLocalDateStr(now),
+          startTimeStr: formatTimeHHMM(now),
+          note: noteVal
+        };
+        saveState();
+        startTicker();
+        renderAll();
+        showToast('Clocked in! Timer is running.');
+      } else {
+        // Clock Out & Save
+        const now = new Date();
+        const elapsedMs = now.getTime() - appState.activeTimer.startTimestamp;
+        const durationMinutes = Math.max(1, Math.round(elapsedMs / 60000));
+        const finalNote = document.getElementById('liveNoteInput').value.trim() || appState.activeTimer.note || 'Work block';
+
+        const newSession = {
+          id: generateId(),
+          date: appState.activeTimer.startDate,
+          durationMinutes,
+          startTime: appState.activeTimer.startTimeStr,
+          endTime: formatTimeHHMM(now),
+          note: finalNote
+        };
+
+        appState.sessions.push(newSession);
+        appState.expandedWeeks[getMondayOfWeek(newSession.date)] = true;
+        appState.activeTimer = null;
+        document.getElementById('liveNoteInput').value = '';
+
+        saveState();
+        stopTicker();
+        renderAll();
+        showToast(`Saved ${formatMinutes(durationMinutes)} block!`);
+      }
+    }
+
+    function discardActiveTimer() {
+      if (!appState.activeTimer) return;
+      openConfirmModal(
+        'Discard Active Session?',
+        'This will stop and delete the currently running timer without adding any hours to your log.',
+        () => {
+          appState.activeTimer = null;
+          document.getElementById('liveNoteInput').value = '';
+          saveState();
+          stopTicker();
+          renderAll();
+          showToast('Active timer discarded.');
+        }
+      );
+    }
+
+    function startTicker() {
+      stopTicker();
+      if (appState.activeTimer) {
+        timerInterval = setInterval(() => {
+          renderTimerUI();
+          // Refresh KPIs every 15 seconds so minute totals stay live
+          if (Math.floor(Date.now() / 1000) % 15 === 0) {
+            renderHeaderAndKPIs(computeWeeklyLedger());
+          }
+        }, 1000);
+      }
+    }
+
+    function stopTicker() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    /* ==========================================================================
+       MANUAL ENTRY & CRUD OPERATIONS
+       ========================================================================== */
+
+    function setManualInputMode(mode) {
+      manualInputMode = mode;
+      const tabDur = document.getElementById('tabModeDuration');
+      const tabRng = document.getElementById('tabModeRange');
+      const fieldsDur = document.getElementById('fieldsDurationMode');
+      const fieldsRng = document.getElementById('fieldsRangeMode');
+      const quickBar = document.getElementById('quickDurationBar');
+
+      if (mode === 'duration') {
+        tabDur.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-xs transition cursor-pointer';
+        tabRng.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        fieldsDur.classList.remove('hidden');
+        fieldsRng.classList.add('hidden');
+        quickBar.classList.remove('hidden');
+      } else {
+        tabRng.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-xs transition cursor-pointer';
+        tabDur.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        fieldsRng.classList.remove('hidden');
+        fieldsDur.classList.add('hidden');
+        quickBar.classList.add('hidden');
+      }
+      updateCalculatedPreview();
+    }
+
+    function updateCalculatedPreview() {
+      let mins = 0;
+      if (manualInputMode === 'duration') {
+        const h = parseInt(document.getElementById('entryHours').value, 10) || 0;
+        const m = parseInt(document.getElementById('entryMinutes').value, 10) || 0;
+        mins = h * 60 + m;
+      } else {
+        const start = document.getElementById('entryStartTime').value;
+        const end = document.getElementById('entryEndTime').value;
+        mins = calcMinutesBetweenTimes(start, end);
+      }
+      document.getElementById('calculatedDurationPreview').innerHTML =
+        `Adding: <strong class="text-slate-800">${formatMinutes(mins)}</strong>`;
+    }
+
+    function handleAddManualBlock(e) {
+      e.preventDefault();
+      const dateStr = document.getElementById('entryDate').value;
+      if (!dateStr) {
+        showToast('Please select a valid date.', 'error');
+        return;
+      }
+
+      let durationMinutes = 0;
+      let startTime = '';
+      let endTime = '';
+
+      if (manualInputMode === 'duration') {
+        const h = parseInt(document.getElementById('entryHours').value, 10) || 0;
+        const m = parseInt(document.getElementById('entryMinutes').value, 10) || 0;
+        durationMinutes = h * 60 + m;
+      } else {
+        startTime = document.getElementById('entryStartTime').value;
+        endTime = document.getElementById('entryEndTime').value;
+        durationMinutes = calcMinutesBetweenTimes(startTime, endTime);
+      }
+
+      if (durationMinutes <= 0) {
+        showToast('Duration must be greater than 0 minutes.', 'error');
+        return;
+      }
+
+      const note = document.getElementById('entryNote').value.trim() || 'Work block';
+
+      const session = {
+        id: generateId(),
+        date: dateStr,
+        durationMinutes,
+        startTime,
+        endTime,
+        note
+      };
+
+      appState.sessions.push(session);
+      appState.expandedWeeks[getMondayOfWeek(dateStr)] = true;
+      document.getElementById('entryNote').value = '';
+
+      saveState();
+      renderAll();
+      showToast(`Added ${formatMinutes(durationMinutes)} on ${formatDayHeading(dateStr)}`);
+    }
+
+    function openEditSessionModal(sessionId) {
+      const session = appState.sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      document.getElementById('editSessionId').value = session.id;
+      document.getElementById('editDate').value = session.date;
+      document.getElementById('editHours').value = Math.floor(session.durationMinutes / 60);
+      document.getElementById('editMinutes').value = session.durationMinutes % 60;
+      document.getElementById('editStartTime').value = session.startTime || '';
+      document.getElementById('editEndTime').value = session.endTime || '';
+      document.getElementById('editNote').value = session.note || '';
+
+      const modal = document.getElementById('editModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeEditSessionModal() {
+      const modal = document.getElementById('editModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function handleSaveEditedSession(e) {
+      e.preventDefault();
+      const id = document.getElementById('editSessionId').value;
+      const idx = appState.sessions.findIndex(s => s.id === id);
+      if (idx === -1) return;
+
+      const date = document.getElementById('editDate').value;
+      const h = parseInt(document.getElementById('editHours').value, 10) || 0;
+      const m = parseInt(document.getElementById('editMinutes').value, 10) || 0;
+      const durationMinutes = h * 60 + m;
+
+      if (!date || durationMinutes <= 0) {
+        showToast('Please enter a valid date and duration.', 'error');
+        return;
+      }
+
+      appState.sessions[idx] = {
+        ...appState.sessions[idx],
+        date,
+        durationMinutes,
+        startTime: document.getElementById('editStartTime').value,
+        endTime: document.getElementById('editEndTime').value,
+        note: document.getElementById('editNote').value.trim() || 'Work block'
+      };
+
+      appState.expandedWeeks[getMondayOfWeek(date)] = true;
+      saveState();
+      closeEditSessionModal();
+      renderAll();
+      showToast('Work block updated.');
+    }
+
+    function deleteSession(sessionId) {
+      const session = appState.sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      openConfirmModal(
+        'Delete Work Block?',
+        `Remove "${session.note || 'Work block'}" (${formatMinutes(session.durationMinutes)}) from ${formatDayHeading(session.date)}?`,
+        () => {
+          appState.sessions = appState.sessions.filter(s => s.id !== sessionId);
+          saveState();
+          renderAll();
+          showToast('Work block deleted.');
+        }
+      );
+    }
+
+    /* ==========================================================================
+       SAMPLE DATA, EXPORT & BACKUP
+       ========================================================================== */
+
+    function loadSampleWeekData() {
+      const todayStr = toLocalDateStr();
+      const thisMonday = getMondayOfWeek(todayStr);
+      const lastMonday = addDays(thisMonday, -7);
+
+      const sampleBlocks = [
+        // Last week: 31h 15m logged (+1h 15m surplus)
+        { date: lastMonday, durationMinutes: 210, startTime: '09:00', endTime: '12:30', note: 'Morning focus', isSample: true },
+        { date: lastMonday, durationMinutes: 150, startTime: '13:30', endTime: '16:00', note: 'Post-lunch sprint', isSample: true },
+        { date: addDays(lastMonday, 1), durationMinutes: 240, startTime: '09:15', endTime: '13:15', note: 'Morning block', isSample: true },
+        { date: addDays(lastMonday, 1), durationMinutes: 120, startTime: '16:15', endTime: '18:15', note: 'Post-school run', isSample: true },
+        { date: addDays(lastMonday, 2), durationMinutes: 300, startTime: '09:00', endTime: '14:00', note: 'Deep work', isSample: true },
+        { date: addDays(lastMonday, 2), durationMinutes: 75, startTime: '20:00', endTime: '21:15', note: 'Evening catch-up', isSample: true },
+        { date: addDays(lastMonday, 3), durationMinutes: 270, startTime: '09:30', endTime: '14:00', note: 'Client deliverables', isSample: true },
+        { date: addDays(lastMonday, 4), durationMinutes: 330, startTime: '09:00', endTime: '14:30', note: 'Friday wrap-up', isSample: true },
+        { date: addDays(lastMonday, 5), durationMinutes: 180, startTime: '09:30', endTime: '12:30', note: 'Saturday morning catch-up', isSample: true },
+
+        // Current week: fragmented blocks up to today
+        { date: thisMonday, durationMinutes: 195, startTime: '09:00', endTime: '12:15', note: 'Morning block', isSample: true },
+        { date: thisMonday, durationMinutes: 135, startTime: '16:00', endTime: '18:15', note: 'Post-school run', isSample: true },
+        { date: addDays(thisMonday, 1), durationMinutes: 240, startTime: '09:00', endTime: '13:00', note: 'Morning focus', isSample: true },
+        { date: addDays(thisMonday, 1), durationMinutes: 90, startTime: '20:15', endTime: '21:45', note: 'Evening catch-up', isSample: true },
+        { date: addDays(thisMonday, 2), durationMinutes: 270, startTime: '09:15', endTime: '13:45', note: 'Project planning', isSample: true }
+      ];
+
+      // Remove existing sample entries first so clicking twice doesn't duplicate
+      appState.sessions = appState.sessions.filter(s => !s.isSample);
+      sampleBlocks.forEach(b => {
+        appState.sessions.push({ id: generateId(), ...b });
+      });
+
+      appState.expandedWeeks[thisMonday] = true;
+      appState.expandedWeeks[lastMonday] = true;
+      saveState();
+      renderAll();
+      showToast('Loaded realistic 2-week sample schedule!');
+    }
+
+    function exportToCsv() {
+      const ledger = computeWeeklyLedger();
+      const headers = ['Week Start (Mon)', 'Date', 'Day', 'Start Time', 'End Time', 'Duration (Minutes)', 'Duration (Formatted)', 'Note'];
+      const rows = [headers.join(',')];
+
+      const sortedSessions = [...appState.sessions].sort((a, b) => a.date.localeCompare(b.date));
+      sortedSessions.forEach(s => {
+        const dayName = parseLocalDate(s.date).toLocaleDateString('en-GB', { weekday: 'short' });
+        const escapedNote = `"${(s.note || '').replace(/"/g, '""')}"`;
+        rows.push([
+          getMondayOfWeek(s.date),
+          s.date,
+          dayName,
+          s.startTime || '',
+          s.endTime || '',
+          s.durationMinutes,
+          formatMinutes(s.durationMinutes),
+          escapedNote
+        ].join(','));
+      });
+
+      rows.push('');
+      rows.push(`Summary Cumulative Balance,,,,,${Math.round(ledger.cumulativeBalanceMinutes)},${formatSignedMinutes(ledger.cumulativeBalanceMinutes)},`);
+
+      downloadFile(rows.join('\n'), `flexilog-export-${toLocalDateStr()}.csv`, 'text/csv;charset=utf-8;');
+      showToast('CSV exported!');
+    }
+
+    function exportJsonBackup() {
+      const payload = JSON.stringify(appState, null, 2);
+      downloadFile(payload, `flexilog-backup-${toLocalDateStr()}.json`, 'application/json');
+      showToast('JSON backup downloaded!');
+    }
+
+    function importJsonBackup(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (!imported || !Array.isArray(imported.sessions)) {
+            throw new Error('Invalid backup format');
+          }
+          appState.settings = {
+            weeklyTargetHours: Number(imported.settings?.weeklyTargetHours) || 30,
+            trackingStartDate: imported.settings?.trackingStartDate || ''
+          };
+          appState.sessions = imported.sessions;
+          appState.activeTimer = imported.activeTimer || null;
+          appState.expandedWeeks = imported.expandedWeeks || {};
+          saveState();
+          startTicker();
+          renderAll();
+          closeSettingsModal();
+          showToast(`Restored ${appState.sessions.length} work blocks!`);
+        } catch (err) {
+          showToast('Invalid JSON backup file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function downloadFile(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /* ==========================================================================
+       SETTINGS MODAL HANDLERS
+       ========================================================================== */
+
+    function openSettingsModal() {
+      document.getElementById('settingWeeklyHours').value = appState.settings.weeklyTargetHours;
+      document.getElementById('settingStartDate').value = appState.settings.trackingStartDate || '';
+      const modal = document.getElementById('settingsModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    /* ==========================================================================
+       INITIALIZATION & EVENT WIRING
+       ========================================================================== */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+
+      // Default entry date to today
+      document.getElementById('entryDate').value = toLocalDateStr();
+
+      // Live Timer Controls
+      document.getElementById('btnToggleTimer').addEventListener('click', toggleTimer);
+      document.getElementById('btnDiscardTimer').addEventListener('click', discardActiveTimer);
+
+      document.getElementById('liveNoteInput').addEventListener('input', (e) => {
+        if (appState.activeTimer) {
+          appState.activeTimer.note = e.target.value;
+          saveState();
+        }
+      });
+
+      document.querySelectorAll('.live-preset-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const input = document.getElementById('liveNoteInput');
+          input.value = chip.dataset.livePreset;
+          if (appState.activeTimer) {
+            appState.activeTimer.note = input.value;
+            saveState();
+          }
+        });
+      });
+
+      // Manual Entry Mode Switch & Inputs
+      document.getElementById('tabModeDuration').addEventListener('click', () => setManualInputMode('duration'));
+      document.getElementById('tabModeRange').addEventListener('click', () => setManualInputMode('range'));
+
+      ['entryHours', 'entryMinutes', 'entryStartTime', 'entryEndTime'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateCalculatedPreview);
+      });
+
+      document.querySelectorAll('.dur-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.getElementById('entryHours').value = chip.dataset.durH;
+          document.getElementById('entryMinutes').value = chip.dataset.durM;
+          updateCalculatedPreview();
+        });
+      });
+
+      document.querySelectorAll('.entry-preset-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.getElementById('entryNote').value = chip.dataset.entryPreset;
+        });
+      });
+
+      document.getElementById('manualEntryForm').addEventListener('submit', handleAddManualBlock);
+
+      // Edit Modal
+      document.getElementById('btnCloseEditModal').addEventListener('click', closeEditSessionModal);
+      document.getElementById('btnCancelEdit').addEventListener('click', closeEditSessionModal);
+      document.getElementById('editSessionForm').addEventListener('submit', handleSaveEditedSession);
+
+      // Settings & Backup Modal
+      document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
+      document.getElementById('btnCloseSettingsModal').addEventListener('click', closeSettingsModal);
+      document.getElementById('settingsForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const hrs = parseFloat(document.getElementById('settingWeeklyHours').value);
+        if (!hrs || hrs <= 0) {
+          showToast('Please enter a valid weekly target.', 'error');
+          return;
+        }
+        appState.settings.weeklyTargetHours = hrs;
+        appState.settings.trackingStartDate = document.getElementById('settingStartDate').value;
+        saveState();
+        closeSettingsModal();
+        renderAll();
+        showToast('Settings saved!');
+      });
+
+      // Exports, Imports & Sample Data
+      document.getElementById('btnExportCsv').addEventListener('click', exportToCsv);
+      document.getElementById('btnSettingsExportCsv').addEventListener('click', exportToCsv);
+      document.getElementById('btnExportJson').addEventListener('click', exportJsonBackup);
+      document.getElementById('inputImportJson').addEventListener('change', (e) => {
+        importJsonBackup(e.target.files[0]);
+        e.target.value = '';
+      });
+
+      document.getElementById('btnLoadSample').addEventListener('click', loadSampleWeekData);
+
+      document.getElementById('btnClearDemoOrAll').addEventListener('click', () => {
+        closeSettingsModal();
+        openConfirmModal(
+          'Reset All Tracked Data?',
+          'This will permanently clear all logged work blocks and reset your running balance to 0h 00m.',
+          () => {
+            appState.sessions = [];
+            appState.activeTimer = null;
+            appState.settings.trackingStartDate = '';
+            saveState();
+            stopTicker();
+            renderAll();
+            showToast('All data cleared.');
+          }
+        );
+      });
+
+      // Confirm Modal Buttons
+      document.getElementById('btnConfirmCancel').addEventListener('click', closeConfirmModal);
+      document.getElementById('btnConfirmProceed').addEventListener('click', () => {
+        if (typeof pendingConfirmCallback === 'function') {
+          pendingConfirmCallback();
+        }
+        closeConfirmModal();
+      });
+
+      // Initial render & start live ticker if clocked in
+      updateCalculatedPreview();
+      startTicker();
+      renderAll();
+    });
+  </script>
+</body>
+</html>
